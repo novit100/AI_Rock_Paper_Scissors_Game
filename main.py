@@ -47,8 +47,9 @@ Captures a frame from the camera, and returns this frame and the hands' landmark
 """
 def captureLandmarksInFrame():
     success, img = cap.read()  # read the frame
-    img, num_hands_detected = detector.findHands(img)  # find the hand
-    landmarksList = detector.findPosition(img, draw=False)  # create the hand landmarks
+    img = cv2.flip(img, 1)  # mirror the frame
+    img, num_hands_detected = detector.findHands(img, draw=False)  # find the hands
+    landmarksList = detector.findPosition(img, draw=False)  # create the hands' landmarks
     return img, num_hands_detected, landmarksList
 
 
@@ -58,15 +59,20 @@ When the user puts his hand in front of the camera, analyses his choice:
     rock = 2
     scissors = 3
     none of the above = 0
-And shows the suitable image on the upper left corner of the screen
 """
-def analyseAndShowUserChoice(img, landmarksList):
+def analyseUserChoice(landmarksList):
     fingers = []
     # Thumb
-    if landmarksList[tipIds[0]][1] > landmarksList[tipIds[0] - 1][1]:
-        fingers.append(1)
-    else:
-        fingers.append(0)
+    if landmarksList[tipIds[0]][1] < landmarksList[tipIds[4] - 1][1]:  # right hand
+        if landmarksList[tipIds[0]][1] < landmarksList[tipIds[0] - 1][1]:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+    else:  # left hand
+        if landmarksList[tipIds[0]][1] > landmarksList[tipIds[0] - 1][1]:
+            fingers.append(1)
+        else:
+            fingers.append(0)
     # 4 Fingers
     for id in range(1, 5):
         if landmarksList[tipIds[id]][2] < landmarksList[tipIds[id] - 2][2]:
@@ -75,21 +81,28 @@ def analyseAndShowUserChoice(img, landmarksList):
             fingers.append(0)
     totalFingers = fingers.count(1)  # the number of fingers
 
-    userChoise = 0
     if totalFingers == 5:  # paper
-        userChoise = 1
+        return 1
+    elif totalFingers == 0:  # rock
+        return 2
+    elif totalFingers == 2 and fingers[1] == 1 and fingers[2] == 1:  # scissors
+        return 3
+    return 0
+
+
+"""
+Gets the user's choice and shows the suitable image on the upper left corner of the screen
+"""
+def showUserChoice(img, userChoice):
+    if userChoice == 1:  # paper
         cv2.putText(img, "USER", (wSpace + 30, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 193, 43), 2)
         img[hSpace:hSpace + hPaper, wSpace:wSpace + wPaper] = PRSImagesList[0]
-    elif totalFingers == 0:  # rock
-        userChoise = 2
+    elif userChoice == 2:  # rock
         cv2.putText(img, "USER", (wSpace + 30, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (186, 108, 255), 2)
         img[hSpace:hSpace + hRock, wSpace:wSpace + wRock] = PRSImagesList[1]
-    elif totalFingers == 2 and fingers[1] == 1 and fingers[2] == 1:  # scissors
-        userChoise = 3
+    elif userChoice == 3:  # scissors
         cv2.putText(img, "USER", (wSpace + 30, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (57, 229, 255), 2)
         img[hSpace:hSpace + hScissors, wSpace:wSpace + wScissors] = PRSImagesList[2]
-
-    return userChoise
 
 
 """
@@ -103,17 +116,17 @@ def ruffleAndShowComputerChoice(img):
     computerChoice = random.randint(1, 3)
 
     if computerChoice == 1:  # paper
-        img[hSpace:hSpace + hPaper, wCam - wSpace - wPaper:wCam - wSpace] = PRSImagesList[0]
         cv2.putText(img, "COMPUTER", (wCam - wPaper - wSpace - 5, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
                     (255, 193, 43), 2)
+        img[hSpace:hSpace + hPaper, wCam - wSpace - wPaper:wCam - wSpace] = PRSImagesList[0]
     elif computerChoice == 2:  # rock
-        img[hSpace:hSpace + hRock, wCam - wSpace - wRock:wCam - wSpace] = PRSImagesList[1]
-        cv2.putText(img, "COMPUTER", (wCam - wPaper - wSpace - 5, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
+        cv2.putText(img, "COMPUTER", (wCam - wRock - wSpace - 5, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
                     (186, 108, 255), 2)
+        img[hSpace:hSpace + hRock, wCam - wSpace - wRock:wCam - wSpace] = PRSImagesList[1]
     elif computerChoice == 3:  # scissors
-        img[hSpace:hSpace + hScissors, wCam - wSpace - wScissors:wCam - wSpace] = PRSImagesList[2]
-        cv2.putText(img, "COMPUTER", (wCam - wPaper - wSpace - 5, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
+        cv2.putText(img, "COMPUTER", (wCam - wScissors - wSpace - 5, hSpace - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9,
                     (57, 229, 255), 2)
+        img[hSpace:hSpace + hScissors, wCam - wSpace - wScissors:wCam - wSpace] = PRSImagesList[2]
 
     return computerChoice
 
@@ -146,7 +159,7 @@ def findAndShowWinner(img, userChoice, computerChoice):
 
 
 def main(rec=0):
-    oneHandFrameCounter = 0
+    onePaperSignFrameCounter = 0
     twoHandsFrameCounter = 0
     while True:
         img, num_hands_detected, landmarksList = captureLandmarksInFrame()
@@ -158,19 +171,24 @@ def main(rec=0):
             cv2.putText(img, "Try Again", (150, 110), cv2.FONT_HERSHEY_SIMPLEX, 2, (134, 68, 6), 5)
         img[hCam - hExit:hCam, wCam - wExit:wCam] = ExitAndStartImagesList[0]
         img[hCam - hStart:hCam, 0:wStart] = ExitAndStartImagesList[1]
+
         if num_hands_detected == 2:
-            oneHandFrameCounter = 0
+            onePaperSignFrameCounter = 0
             twoHandsFrameCounter += 1
             if twoHandsFrameCounter >= 30:
                 time.sleep(1)
                 return
         elif num_hands_detected == 1:
-            oneHandFrameCounter += 1
             twoHandsFrameCounter = 0
-            if oneHandFrameCounter >= 10:
-                break
+            userSign = analyseUserChoice(landmarksList)
+            if userSign == 1:
+                onePaperSignFrameCounter += 1
+                if onePaperSignFrameCounter >= 10:
+                    break
+            else:
+                onePaperSignFrameCounter = 0
         else:
-            oneHandFrameCounter = 0
+            onePaperSignFrameCounter = 0
             twoHandsFrameCounter = 0
         cv2.imshow("Rock Paper Scissors Game", img)
         cv2.waitKey(1)
@@ -184,11 +202,15 @@ def main(rec=0):
             cv2.putText(img, "Show only ONE hand", (wSpace + 30, hSpace - 5),
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
         elif num_hands_detected == 1:
-            analyseAndShowUserChoice(img, landmarksList)
+            userChoice = analyseUserChoice(landmarksList)
+
+            if userChoice == 0:
+                cv2.putText(img, "Make your choice!", (wSpace + 30, hSpace - 5),
+                            cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
+            else:
+                showUserChoice(img, userChoice)
         else:
-            cv2.putText(img, "The game is on,", (wSpace + 30, hSpace - 5),
-                        cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
-            cv2.putText(img, "make your choice!", (wSpace + 30, hSpace + 30),
+            cv2.putText(img, "Make your choice!", (wSpace + 30, hSpace - 5),
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
 
         rgb = (random.randint(0, 150), random.randint(0, 150), random.randint(0, 150))
@@ -199,13 +221,14 @@ def main(rec=0):
 
     # Time's Up! Analyse results:
     img, num_hands_detected, landmarksList = captureLandmarksInFrame()
-    if num_hands_detected == 2:
+    if num_hands_detected >= 2:
         cv2.putText(img, "Too Many Hands!", (125, 100), cv2.FONT_HERSHEY_PLAIN, 3, (134, 68, 6), 5)
     elif num_hands_detected == 1:
-        userChoice = analyseAndShowUserChoice(img, landmarksList)
+        userChoice = analyseUserChoice(landmarksList)
         if userChoice == 0:
             cv2.putText(img, "Rock Paper or Scissors ONLY", (70, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (134, 68, 6), 3)
         else:
+            showUserChoice(img, userChoice)
             computerChoice = ruffleAndShowComputerChoice(img)
             findAndShowWinner(img, userChoice, computerChoice)
     else:
