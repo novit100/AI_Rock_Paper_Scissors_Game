@@ -2,7 +2,11 @@
 A rock paper scissors game in python using opencv and mediapipe
 Rock-Paper-Scissors Game video 
 
-Uploading COMPRESSEDRock Paper Scissors Game סופי  2022-02-08 23-55-22.mp4…
+https://user-images.githubusercontent.com/73182169/153088126-ad593bc8-46fc-4fd9-8443-930078a13a4d.mp4
+
+
+
+
 
 
 
